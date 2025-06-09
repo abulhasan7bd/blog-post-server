@@ -9,27 +9,47 @@ app.use(cors());
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.USER_NAME}:${process.env.USER_PASSWORD}@cluster11.spsqp4v.mongodb.net/?retryWrites=true&w=majority&appName=Cluster11`;
 
-const client = new MongoClient(uri, {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
-  },
+// ✅ WITHOUT apiStrict mode:
+
+const client = new MongoClient("mongodb://localhost:27017", {
+  serverApi: { version: "1", strict: false },
 });
 
+async function ensureTextIndex(blogCollection) {
+  // আগের index গুলো নাও
+  const existingIndexes = await blogCollection.indexes();
+
+  // চেক করো 'TextIndexForSearch' নামের index আগেই আছে কিনা
+  const indexAlreadyExists = existingIndexes.some(
+    (index) => index.name === "TextIndexForSearch"
+  );
+
+  if (!indexAlreadyExists) {
+    await blogCollection.createIndex(
+      {
+        heading: "text",
+        category: "text",
+      },
+      {
+        name: "TextIndexForSearch", // কাস্টম index নাম
+      }
+    );
+    console.log("✅ Text index 'TextIndexForSearch' created successfully.");
+  } else {
+    console.log("ℹ️ Text index 'TextIndexForSearch' already exists.");
+  }
+}
 async function run() {
   try {
     await client.connect();
-    // SERVER NAME
-    const blogServer = await client.db("blogServer");
-    const blogCollection = blogServer.collection("blogCollection");
-    // await blogCollection.createIndex({ heading: "text" });
-    const wishListCollection = await blogServer.collection(
-      "wishListCollection"
-    );
-    const commentCollection = blogServer.collection("comments");
-    console.log("You successfully connected to MongoDB!");
+    const blogServer = client.db("blogServer");
 
+    const blogCollection = blogServer.collection("blogCollection");
+    const wishListCollection = blogServer.collection("wishListCollection");
+    const commentCollection = blogServer.collection("comments");
+
+    console.log("You successfully connected to MongoDB!");
+    await ensureTextIndex(blogCollection);
     // 1 : RESPONSE ROUTE
     app.get("/", (req, res) => {
       res.send("Hello World!");
@@ -105,20 +125,28 @@ async function run() {
       res.send(result);
     });
 
-    // 7 : SEARCH IN MONGODB
-    app.get("/search", async (req, res) => {
-      const searchText = req.query.q;
-      try {
-        const result = await blogCollection
-          .find({ $text: { $search: searchText } })
-          .toArray();
+  app.get("/blogs", async (req, res) => {
+  const { search } = req.query;
+  let query = {};
 
-        res.send(result);
-      } catch (error) {
-        console.error("Search error:", error.message);
-        res.status(500).send({ message: "Search failed" });
-      }
-    });
+  if (search) {
+    query = {
+      $or: [
+        { heading: { $regex: search, $options: "i" } },
+        { category: { $regex: search, $options: "i" } },
+      ],
+    };
+  }
+
+  try {
+    const blogs = await blogCollection.find(query).toArray();
+    res.json(blogs);
+  } catch (err) {
+    console.error("Error fetching blogs:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 
     // COMMENTS
     app.post("/comment", async (req, res) => {
