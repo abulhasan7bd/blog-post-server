@@ -27,6 +27,7 @@ async function run() {
     const wishListCollection = await blogServer.collection(
       "wishListCollection"
     );
+    const commentCollection = blogServer.collection("comments");
     console.log("You successfully connected to MongoDB!");
 
     // 1 : RESPONSE ROUTE
@@ -47,7 +48,7 @@ async function run() {
       res.send(result);
     });
 
-    // SINGLE BLOG 
+    // SINGLE BLOG
     app.get("/singleblog/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -117,6 +118,31 @@ async function run() {
         console.error("Search error:", error.message);
         res.status(500).send({ message: "Search failed" });
       }
+    });
+
+    // COMMENTS
+    app.post("/comment", async (req, res) => {
+      const comment = req.body;
+      const result = await commentCollection.insertOne(comment);
+      res.send(result);
+    });
+
+    app.get("/commentall", async (req, res) => {
+      const comment = req.body;
+      const result = await commentCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.get("/commenFind/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { commentPostId: id };
+      const result = await commentCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    app.delete("/commentalldelet", async (req, res) => {
+      const result = await commentCollection.deleteMany();
+      res.send(result);
     });
   } finally {
   }
