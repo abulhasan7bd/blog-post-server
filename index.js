@@ -1,15 +1,22 @@
 const express = require("express");
 const app = express();
 require("dotenv").config();
-const port = process.env.MY_PORT;
+const port = process.env.MY_PORT || 5000;
 const cors = require("cors");
 const { MongoClient, ObjectId } = require("mongodb");
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 
-//****** MIDDLEWARE *****\\
+// middlewere 
 app.use(express.json());
-app.use(cors());
+app.use(cookieParser());
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
 
-//****** MONGODB CONNECTION *****\\
 const uri = `mongodb+srv://${process.env.USER_NAME}:${process.env.USER_PASSWORD}@cluster11.spsqp4v.mongodb.net/?retryWrites=true&w=majority&appName=Cluster11`;
 
 const client = new MongoClient(uri, {
@@ -20,22 +27,12 @@ const client = new MongoClient(uri, {
   },
 });
 
-//****** SEARCH INDEX CREATION *****\\
+
 const createSearchIndex = async (blogCollection) => {
   const existingIndexes = await blogCollection.indexes();
   const indexAlreadyExists = existingIndexes.some(
     (index) => index.name === "TextIndexForSearch"
   );
-  
-  if (!indexAlreadyExists) {
-    await blogCollection.createIndex(
-      { heading: "text", category: "text" },
-      { name: "TextIndexForSearch" }
-    );
-    console.log("Text index 'TextIndexForSearch' created successfully.");
-  } else {
-    console.log("Text index 'TextIndexForSearch' already exists.");
-  }
 };
 
 async function run() {
@@ -49,13 +46,29 @@ async function run() {
     console.log("You successfully connected to MongoDB!");
     await createSearchIndex(blogCollection);
 
+      // middlewere api veryfy
+    const veryfyCooki = (req, res, next) => {
+      const token = req.cookies.accessToken;
+      console.log(token)
+      if (!token) {
+        return res.status(401).send({ message: "Invlid user" });
+      }
+      jwt.verify(token, process.env.secretKey, function (err, decoded) {
+        if (err) {
+          return res.status(401).send({ message: "Invalid User" });
+        }
+
+        req.decoded = decoded;
+      });
+      next();
+    };
     //****** ROUTES *****\\
     app.get("/", (req, res) => {
       res.send("Hello World!");
     });
 
     //****** BLOG ROUTES *****\\
-    app.post("/add-blog", async (req, res) => {
+    app.post("/add-blog",veryfyCooki, async (req, res) => {
       const data = req.body;
       const result = await blogCollection.insertOne(data);
       res.send(result);
@@ -66,6 +79,7 @@ async function run() {
       res.send(result);
     });
 
+  
     app.get("/singleblog/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -102,8 +116,12 @@ async function run() {
       res.status(201).send(result);
     });
 
-    app.get("/all-wishlist", async (req, res) => {
+    app.get("/all-wishlist", veryfyCooki, async (req, res) => {
       const email = req.query.email;
+ 
+      if (email !== req.decoded.userEmail) {
+        return res.status(401).send({ message: "INvalid user" });
+      }
       const query = { wishListEmail: email };
       const result = await wishListCollection.find(query).toArray();
       res.send(result);
@@ -111,7 +129,9 @@ async function run() {
 
     app.delete("/wish-list-remove/:id", async (req, res) => {
       const id = req.params.id;
-      const result = await wishListCollection.deleteOne({ _id: new ObjectId(id) });
+      const result = await wishListCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
       res.send(result);
     });
 
@@ -164,6 +184,27 @@ async function run() {
       res.send(result);
     });
 
+    // jwts token
+
+    app.post("/jwtCreate", (req, res) => {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({ error: "Email is required" });
+      }
+
+      const token = jwt.sign({ userEmail: email }, process.env.secretKey, {
+        expiresIn: "1h",
+      });
+      res.cookie("accessToken", token, {
+        httpOnly: true,
+        secure: false,
+        sameSite: "Lax",
+        maxAge: 3600000,
+      });
+
+   return   res.status(200).json({ token });
+    });
   } catch (err) {
     console.error("Server error:", err);
   }
