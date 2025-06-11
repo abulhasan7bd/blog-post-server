@@ -12,7 +12,7 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: ["http://localhost:5173", " https://auth-practice-eaa42.web.app"],
     credentials: true,
   })
 );
@@ -58,18 +58,23 @@ async function run() {
     // middlewere api veryfy
     const veryfyCooki = (req, res, next) => {
       const token = req.cookies.accessToken;
-      if (!token) {
-        return res.status(401).send({ message: "Invlid user" });
-      }
-      jwt.verify(token, process.env.secretKey, function (err, decoded) {
+      // if (!token) {
+      //   return res
+      //     .status(401)
+      //     .send({ message: "Access denied. No token provided." });
+      // }
+      jwt.verify(token, process.env.secretKey, (err, decoded) => {
         if (err) {
-          return res.status(401).send({ message: "Invalid User" });
+          return res.status(401).send({
+            message: "Invalid or expired token. Please log in again.",
+          });
         }
 
         req.decoded = decoded;
+        next(); // Move inside the verify callback
       });
-      next();
     };
+
     //****** ROUTES *****\\
     app.get("/", (req, res) => {
       res.send("Hello World!");
@@ -77,8 +82,13 @@ async function run() {
 
     //****** BLOG ROUTES *****\\
     app.post("/add-blog", veryfyCooki, async (req, res) => {
-      const data = req.body;
-      const result = await blogCollection.insertOne(data);
+      const { email, blog } = req.body;
+      if (email !== req.decoded.userEmail) {
+        return res
+          .status(401)
+          .send({ message: "Invalid Current User Email !" });
+      }
+      const result = await blogCollection.insertOne(blog);
       res.send(result);
     });
 
@@ -126,7 +136,9 @@ async function run() {
       const email = req.query.email;
 
       if (email !== req.decoded.userEmail) {
-        return res.status(401).send({ message: "INvalid user" });
+        return res
+          .status(401)
+          .send({ message: "Invalid Current User Email !" });
       }
       const query = { wishListEmail: email };
       const result = await wishListCollection.find(query).toArray();
@@ -136,7 +148,7 @@ async function run() {
     app.delete("/wish-list-remove/:id", async (req, res) => {
       const id = req.params.id;
       const result = await wishListCollection.deleteOne({
-        _id: new ObjectId(id),
+        _id: id,
       });
       res.send(result);
     });
@@ -201,15 +213,13 @@ async function run() {
       const token = jwt.sign({ userEmail: email }, process.env.secretKey, {
         expiresIn: "1h",
       });
-
       res.cookie("accessToken", token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "Lax",
         maxAge: 60 * 60 * 1000,
       });
-
-      return res.status(200).json({ success: true, token });
+      return res.status(200).json({ success: true });
     });
   } catch (err) {
     console.error("Server error:", err);
@@ -219,9 +229,9 @@ async function run() {
 run()
   .then(() => {
     app.listen(port, () => {
-      console.log(`✅ Server running on port ${port}`);
+      console.log(` Server running on port ${port}`);
     });
   })
   .catch((err) => {
-    console.error("❌ Failed to start server:", err);
+    console.error("Failed to start server:", err);
   });
