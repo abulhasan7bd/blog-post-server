@@ -7,7 +7,7 @@ const { MongoClient, ObjectId } = require("mongodb");
 const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
 
-// middlewere 
+// middlewere
 app.use(express.json());
 app.use(cookieParser());
 app.use(
@@ -27,12 +27,21 @@ const client = new MongoClient(uri, {
   },
 });
 
-
 const createSearchIndex = async (blogCollection) => {
   const existingIndexes = await blogCollection.indexes();
   const indexAlreadyExists = existingIndexes.some(
     (index) => index.name === "TextIndexForSearch"
   );
+
+  if (!indexAlreadyExists) {
+    await blogCollection.createIndex(
+      { title: "text", description: "text", category: "text" },
+      { name: "TextIndexForSearch" }
+    );
+    // console.log("Text index created.");
+  } else {
+    // console.log("Text index already exists.");
+  }
 };
 
 async function run() {
@@ -43,13 +52,12 @@ async function run() {
     const wishListCollection = blogServer.collection("wishListCollection");
     const commentCollection = blogServer.collection("comments");
 
-    console.log("You successfully connected to MongoDB!");
-    await createSearchIndex(blogCollection);
+    // console.log("You successfully connected to MongoDB!");
+    createSearchIndex(blogCollection);
 
-      // middlewere api veryfy
+    // middlewere api veryfy
     const veryfyCooki = (req, res, next) => {
       const token = req.cookies.accessToken;
-      console.log(token)
       if (!token) {
         return res.status(401).send({ message: "Invlid user" });
       }
@@ -68,7 +76,7 @@ async function run() {
     });
 
     //****** BLOG ROUTES *****\\
-    app.post("/add-blog",veryfyCooki, async (req, res) => {
+    app.post("/add-blog", veryfyCooki, async (req, res) => {
       const data = req.body;
       const result = await blogCollection.insertOne(data);
       res.send(result);
@@ -79,7 +87,6 @@ async function run() {
       res.send(result);
     });
 
-  
     app.get("/singleblog/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -104,7 +111,6 @@ async function run() {
         const blogs = await blogCollection.find(query).toArray();
         res.json(blogs);
       } catch (err) {
-        console.error("Error fetching blogs:", err);
         res.status(500).json({ message: "Server error" });
       }
     });
@@ -118,7 +124,7 @@ async function run() {
 
     app.get("/all-wishlist", veryfyCooki, async (req, res) => {
       const email = req.query.email;
- 
+
       if (email !== req.decoded.userEmail) {
         return res.status(401).send({ message: "INvalid user" });
       }
@@ -184,8 +190,7 @@ async function run() {
       res.send(result);
     });
 
-    // jwts token
-
+    // json webtoken create
     app.post("/jwtCreate", (req, res) => {
       const { email } = req.body;
 
@@ -196,22 +201,27 @@ async function run() {
       const token = jwt.sign({ userEmail: email }, process.env.secretKey, {
         expiresIn: "1h",
       });
+
       res.cookie("accessToken", token, {
         httpOnly: true,
-        secure: false,
+        secure: process.env.NODE_ENV === "production",
         sameSite: "Lax",
-        maxAge: 3600000,
+        maxAge: 60 * 60 * 1000,
       });
 
-   return   res.status(200).json({ token });
+      return res.status(200).json({ success: true, token });
     });
   } catch (err) {
     console.error("Server error:", err);
   }
 }
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
-
-run().catch(console.dir);
+run()
+  .then(() => {
+    app.listen(port, () => {
+      console.log(`✅ Server running on port ${port}`);
+    });
+  })
+  .catch((err) => {
+    console.error("❌ Failed to start server:", err);
+  });
