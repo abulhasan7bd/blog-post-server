@@ -37,7 +37,7 @@ const createSearchIndex = async (collection) => {
 
 async function run() {
   try {
-    await client.connect();
+
     const db = client.db("blogServer");
     const blogs = db.collection("blogCollection");
     const wishlist = db.collection("wishListCollection");

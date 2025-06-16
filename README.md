@@ -25,7 +25,7 @@ This server manages all data-related operations for the DevHeps platform, includ
 - **dotenv**
 - **cookie-parser**
 - **CORS**
-- **morgan** (logging middleware)
+- **Custom Middleware** (middleware)
 
 ---
 
