@@ -13,7 +13,7 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://auth-practice-eaa42.web.app"],
+    origin: ["http://localhost:5174", "https://auth-practice-eaa42.web.app"],
     credentials: true,
   })
 );
