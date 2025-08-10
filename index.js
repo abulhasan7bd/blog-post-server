@@ -98,9 +98,16 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/all-blogs", async (_, res) =>
-      res.send(await blogs.find().toArray())
-    );
+  app.get("/all-blogs", async (_, res) => {
+  const blogsData = await blogs.find().toArray();
+  const blogsWithPrice = blogsData.map(blog => ({
+    ...blog,
+    price: 300
+  }));
+
+  res.send(blogsWithPrice);
+});
+
 
     app.get("/singleblog/:id", async (req, res) => {
       const result = await blogs.findOne({ _id: new ObjectId(req.params.id) });
