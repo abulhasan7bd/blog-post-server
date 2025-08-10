@@ -13,10 +13,14 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://auth-practice-eaa42.web.app"],
+    origin: [
+      "http://localhost:5173",
+      "https://abulhasem-blog-server.vercel.app"
+    ],
     credentials: true,
   })
 );
+
 
 // MongoDB connection
 const uri = `mongodb+srv://${process.env.USER_NAME}:${process.env.USER_PASSWORD}@cluster11.spsqp4v.mongodb.net/?retryWrites=true&w=majority&appName=Cluster11`;
