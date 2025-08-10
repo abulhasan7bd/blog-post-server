@@ -13,14 +13,10 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://abulhasem-blog-server.vercel.app"
-    ],
+    origin: ["https://auth-practice-eaa42.web.app"],
     credentials: true,
   })
 );
-
 
 // MongoDB connection
 const uri = `mongodb+srv://${process.env.USER_NAME}:${process.env.USER_PASSWORD}@cluster11.spsqp4v.mongodb.net/?retryWrites=true&w=majority&appName=Cluster11`;
@@ -41,7 +37,6 @@ const createSearchIndex = async (collection) => {
 
 async function run() {
   try {
-
     const db = client.db("blogServer");
     const blogs = db.collection("blogCollection");
     const wishlist = db.collection("wishListCollection");
@@ -94,6 +89,14 @@ async function run() {
       }
     });
 
+    // app.post("/add-blog", async (req, res) => {
+    //   const data = req.body;
+    //   // if (email !== req.decoded.userEmail)
+    //   //   return res.status(401).send({ message: "Unauthorized" });
+    //   const result = await blogs.insertMany(data);
+    //   res.send(result);
+    // });
+    
     app.post("/add-blog", verifyCookie, async (req, res) => {
       const { email, blog } = req.body;
       if (email !== req.decoded.userEmail)
@@ -102,16 +105,17 @@ async function run() {
       res.send(result);
     });
 
-  app.get("/all-blogs", async (_, res) => {
-  const blogsData = await blogs.find().toArray();
-  const blogsWithPrice = blogsData.map(blog => ({
-    ...blog,
-    price: 300
-  }));
+    app.get("/all-blogs", async (_, res) => {
+      const blogsData = await blogs.find().toArray();
 
-  res.send(blogsWithPrice);
-});
+      const blogsWithPrice = blogsData.map((blog) => ({
+        ...blog,
+        // 300 থেকে 800 এর মধ্যে র‍্যান্ডম পূর্ণসংখ্যা
+        price: Math.floor(Math.random() * (800 - 300 + 1)) + 300,
+      }));
 
+      res.send(blogsWithPrice);
+    });
 
     app.get("/singleblog/:id", async (req, res) => {
       const result = await blogs.findOne({ _id: new ObjectId(req.params.id) });
@@ -176,11 +180,10 @@ async function run() {
     });
     app.delete("/commentDelet/:id", (req, res) => {
       const id = req.params.id;
-    
 
       const query = { _id: new ObjectId(id) };
       const delet = comments.deleteOne(query);
-      res.send(delet)
+      res.send(delet);
     });
     // Practice routes
     app.delete("/deleteAllblog", async (_, res) =>
